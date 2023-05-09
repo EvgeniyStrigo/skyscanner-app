@@ -1,0 +1,16 @@
+# Runtime data
+.vscode
+dist/
+package-lock.json
+
+# nyc test coverage
+.nyc_output
+
+# Dependency directories
+node_modules/
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
