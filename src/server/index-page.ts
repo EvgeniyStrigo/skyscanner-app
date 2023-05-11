@@ -1,3 +1,4 @@
+export const indexPage = `
 <!DOCTYPE html>
 <html lang="en">
     <head>
@@ -43,6 +44,11 @@
                     </form>
                 </div>
             </div>
+            <div class="row">
+                <div class="col">
+                    <a id="download" class="d-none"></a>
+                </div>
+            </div>
         </div>
         <script>
             document.addEventListener('DOMContentLoaded', function () {
@@ -62,15 +68,30 @@
                         const loc = window.location
                         const proto = loc.protocol === 'https:' ? 'wss:' : 'ws:'
 
-                        const webSocket = new WebSocket(`${proto}//${loc.host}/ws`)
+                        const webSocket = new WebSocket(proto + '//' + loc.host  + '/ws')
 
                         webSocket.onmessage = (event) => {
                             const resp = JSON.parse(event.data)
 
-                            log.value += resp.message + '\n'
+                            log.value += resp.message + "\\n"
+                            log.scrollTop = log.scrollHeight
 
                             if (resp.status === 'failed') {
                                 webSocket.close()
+                                return
+                            }
+
+                            if (resp.status === 'success') {
+                                webSocket.close()
+                                const split = resp.data.split(',')
+                                const b64data = split[1] || split[0]
+                                const blob = new Blob([atob(b64data)], { type: 'application/vnd.ms-excel' })
+                                const href = window.URL.createObjectURL(blob)
+                                const download = document.getElementById('download')
+                                download.setAttribute('href', href)
+                                download.setAttribute('download', resp.filename)
+                                download.click()
+                                window.URL.revokeObjectURL(href)
                             }
                         }
 
@@ -86,3 +107,4 @@
         </script>
     </body>
 </html>
+`

@@ -1,6 +1,7 @@
 {
     "$schema": "https://json.schemastore.org/tsconfig",
     "display": "Node 18",
+    "include": ["./src/**/*.ts", "./src/**/*.html"],
     "compilerOptions": {
         "lib": ["es2022"],
         "module": "commonjs",
@@ -21,6 +22,7 @@
         "strictNullChecks": true,
         "sourceMap": true,
         "baseUrl": ".",
+        "jsx": "react",
         "paths": {
             "*": ["node_modules/*"]
         }

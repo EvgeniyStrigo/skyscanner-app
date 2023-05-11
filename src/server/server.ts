@@ -1,11 +1,15 @@
-import fs from 'fs'
-import path from 'node:path'
-
-import fastify, {FastifyBaseLogger, FastifyInstance} from 'fastify'
+import fastify, { FastifyBaseLogger, FastifyInstance } from 'fastify'
 import helmet from '@fastify/helmet'
 import websocket from '@fastify/websocket'
+import moment from 'moment'
 import pino from 'pino'
 
+import { indexPage } from './index-page'
+
+import { Skyscanner } from '../classes/skyscanner.class'
+import { ISkyscannerOptions, IUserRequest, TWsLogger } from '../types/types'
+import { config } from '../config'
+import { ExcelXml } from '../classes/excel.class'
 
 export class Server {
     private instance?: FastifyInstance
@@ -14,7 +18,7 @@ export class Server {
 
     private processingRequest: boolean
 
-    private port: number;
+    private port: number
 
     public static async build(logger: pino.Logger, port: number): Promise<Server> {
         const server = new Server(port)
@@ -23,15 +27,13 @@ export class Server {
     }
 
     constructor(port: number) {
-        this.indexPage = fs.readFileSync(path.resolve(__dirname, './static/index.html'), {
-            encoding: 'utf8',
-            flag: 'r'
-        })
+        this.indexPage = indexPage as unknown as string
         this.processingRequest = false
         this.port = port
     }
 
     async init(logger: pino.Logger): Promise<void> {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
         // @ts-ignore
         this.instance = fastify({
             logger: logger as FastifyBaseLogger
@@ -43,24 +45,29 @@ export class Server {
         this.initWebsocketRoutes()
     }
 
-    initStaticRoutes() {
+    private initStaticRoutes() {
         if (!this.instance) {
             return
         }
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
         this.instance.get('/', (request, reply) => {
-            reply.type('text/html').send(this.indexPage)
+            reply.type('text/html')
+            reply.send(this.indexPage)
         })
     }
 
-    initWebsocketRoutes() {
+    private initWebsocketRoutes() {
         if (!this.instance) {
             return
         }
+
+        // eslint-disable-next-line @typescript-eslint/no-this-alias
         const self = this
         this.instance.get('/ws', { websocket: true }, function wsHandler(connection, req) {
             connection.setEncoding('utf8')
 
-            connection.socket.on('message', (message: Buffer) => {
+            connection.socket.on('message', async (message: Buffer) => {
                 function abandon(message: string) {
                     const obj = {
                         status: 'failed',
@@ -70,7 +77,18 @@ export class Server {
                     return connection.socket.terminate()
                 }
 
-                function send(message: string) {
+                function finish(filename: string, data: string) {
+                    const obj = {
+                        status: 'success',
+                        message: 'processing finished, you can download file above',
+                        filename,
+                        data
+                    }
+                    connection.socket.send(JSON.stringify(obj))
+                    return connection.socket.terminate()
+                }
+
+                const wsLogger: TWsLogger = (message: string) => {
                     const obj = {
                         status: 'progress',
                         message
@@ -79,7 +97,7 @@ export class Server {
                 }
 
                 try {
-                    const userRequest = JSON.parse(message.toString())
+                    const userRequest: IUserRequest = JSON.parse(message.toString())
                     req.log.info({ userRequest })
 
                     if (self.processingRequest) {
@@ -90,8 +108,17 @@ export class Server {
                     }
                     self.processingRequest = true
 
-                    send('start processing')
-                    send(message.toString())
+                    const skyscannerOptions: Partial<ISkyscannerOptions> = {
+                        apiKey: config.apiKey,
+                        logger: req.log as pino.Logger,
+                        wsLogger: wsLogger
+                    }
+
+                    const ss = new Skyscanner(skyscannerOptions)
+                    const data = await ss.process(userRequest.journeys)
+                    const report = new ExcelXml().generateSimplyReport(data)
+
+                    finish(`skyscanner_report_${moment().format('YYYY-MM-DD_HH-mm-ss')}.xls`, report)
 
                     self.processingRequest = false
                 } catch (err) {
@@ -114,4 +141,3 @@ export class Server {
         })
     }
 }
-

@@ -20,5 +20,6 @@ export const config: IConfig = {
     instanceId: +crc16(os.hostname() + '-' + process.pid),
     logLevel: process.env.LOG_LEVEL || DEFAULT_LOG_LEVEL,
     httpPort: +(process.env.HTTP_PORT || DEFAULT_HTTP_PORT),
-    enableCache: process.env.ENABLE_CACHE === 'true'
+    enableCache: process.env.ENABLE_CACHE === 'true',
+    apiKey: process.env.API_KEY || ''
 }
